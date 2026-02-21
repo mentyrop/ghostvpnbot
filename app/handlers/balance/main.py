@@ -125,6 +125,7 @@ async def route_payment_by_method(
 
         async with AsyncSessionLocal() as db:
             await process_robokassa_payment_amount(message, db_user, db, amount_kopeks, state)
+            await db.commit()
         return True
 
     if payment_method == 'kassa_ai':

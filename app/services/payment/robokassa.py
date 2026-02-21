@@ -125,10 +125,18 @@ class RobokassaPaymentMixin:
         """
         try:
             if client_ip and not robokassa_service.is_trusted_ip(client_ip):
-                logger.warning('Robokassa webhook: запрос с недоверенного IP', client_ip=client_ip)
+                logger.warning(
+                    'Robokassa webhook: запрос с недоверенного IP (очисти ROBOKASSA_TRUSTED_IPS или добавь этот IP)',
+                    client_ip=client_ip,
+                    inv_id=inv_id,
+                )
                 return False
             if not robokassa_service.verify_result_signature(out_sum, inv_id, signature_value):
-                logger.warning('Robokassa webhook: неверная подпись inv_id=', inv_id=inv_id)
+                logger.warning(
+                    'Robokassa webhook: неверная подпись (проверь ROBOKASSA_PASSWORD_2 в .env и Пароль#2 в кабинете)',
+                    inv_id=inv_id,
+                    out_sum=out_sum,
+                )
                 return False
 
             robokassa_crud = import_module('app.database.crud.robokassa')
@@ -140,7 +148,10 @@ class RobokassaPaymentMixin:
 
             payment = await robokassa_crud.get_robokassa_payment_by_inv_id(db, inv_id_int)
             if not payment:
-                logger.warning('Robokassa webhook: платёж не найден inv_id=', inv_id=inv_id)
+                logger.warning(
+                    'Robokassa webhook: платёж не найден в БД (другой сервер/инстанс или платёж не сохранился)',
+                    inv_id=inv_id,
+                )
                 return False
 
             if payment.is_paid:
@@ -154,6 +165,7 @@ class RobokassaPaymentMixin:
                     'Robokassa webhook: несоответствие суммы ожидалось= получено=',
                     expected=expected,
                     received=amount_float,
+                    inv_id=inv_id,
                 )
                 return False
 
