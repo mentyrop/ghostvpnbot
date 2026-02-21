@@ -78,16 +78,16 @@ class RobokassaService:
         self,
         out_sum: float,
         inv_id: int,
-        receipt_encoded: str | None = None,
+        receipt_json: str | None = None,
     ) -> str:
         """
         Подпись для формы оплаты.
         Без чека: MerchantLogin:OutSum:InvId:Password1
-        С чеком: MerchantLogin:OutSum:InvId:Receipt:Password1 (Receipt — URL-encoded).
+        С чеком: MerchantLogin:OutSum:InvId:Receipt:Password1 (Receipt — сырой JSON, не URL-encoded).
         """
         out_str = f'{out_sum:.2f}'
-        if receipt_encoded:
-            sign_str = f'{self.login}:{out_str}:{inv_id}:{receipt_encoded}:{self.password1}'
+        if receipt_json:
+            sign_str = f'{self.login}:{out_str}:{inv_id}:{receipt_json}:{self.password1}'
         else:
             sign_str = f'{self.login}:{out_str}:{inv_id}:{self.password1}'
         return hashlib.md5(sign_str.encode('utf-8')).hexdigest().lower()
@@ -137,6 +137,7 @@ class RobokassaService:
         Формирует URL для перенаправления на оплату Robokassa.
         При включённой фискализации добавляет параметр Receipt и учитывает его в подписи.
         """
+        receipt_json: str | None = None
         receipt_encoded: str | None = None
         if getattr(settings, 'ROBOKASSA_RECEIPT_ENABLED', False):
             item_name = receipt_item_name or getattr(
@@ -148,7 +149,7 @@ class RobokassaService:
         # OutSum в подписи и в URL должен совпадать (формат с двумя знаками после запятой)
         out_sum_str = f'{out_sum:.2f}'
         signature = self.build_signature_for_request(
-            out_sum, inv_id, receipt_encoded=receipt_encoded
+            out_sum, inv_id, receipt_json=receipt_json
         )
         params = {
             'MerchantLogin': self.login,
