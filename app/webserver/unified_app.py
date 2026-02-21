@@ -4,9 +4,12 @@ from pathlib import Path
 
 import structlog
 from aiogram import Bot, Dispatcher
-from fastapi import FastAPI, status
-from fastapi.responses import JSONResponse, RedirectResponse
+import html as html_module
+
+from fastapi import FastAPI, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from urllib.parse import unquote
 
 from app.cabinet.routes import router as cabinet_router
 from app.config import settings
@@ -111,6 +114,27 @@ def create_unified_app(
     payments_router = payments.create_payment_router(bot, payment_service)
     if payments_router:
         app.include_router(payments_router)
+
+    # Страница редиректа на оплату: открывается в Web App (miniapp), сразу перенаправляет на URL оплаты
+    @app.get('/miniapp/pay-redirect', response_class=HTMLResponse, include_in_schema=False)
+    async def miniapp_pay_redirect(request: Request) -> HTMLResponse:
+        url = request.query_params.get('url', '')
+        if not url:
+            return HTMLResponse(
+                '<!DOCTYPE html><html><body><p>Не указана ссылка на оплату.</p></body></html>',
+                status_code=400,
+            )
+        try:
+            decoded = unquote(url)
+        except Exception:
+            decoded = url
+        # Редирект в том же окне Web App — страница оплаты открывается внутри miniapp
+        safe_url = html_module.escape(decoded)
+        html = f'''<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url={safe_url}">
+<script>window.location.href = {repr(decoded)};</script>
+</head><body><p>Переход к оплате…</p></body></html>'''
+        return HTMLResponse(html)
 
     # Mount RemnaWave incoming webhook router
     remnawave_webhook_enabled = settings.is_remnawave_webhook_enabled()

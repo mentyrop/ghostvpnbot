@@ -1144,6 +1144,7 @@
 "PLATEGA_PAY_BUTTON":"💳通过{method}支付",
 "PLATEGA_PAYMENT_ALREADY_CONFIRMED":"✅付款已到账",
 "PLATEGA_PAYMENT_STATUS":"当前付款状态：{status}",
+"PAY_BUTTON":"💳支付 {amount}₽",
 "PAY_NOW_BUTTON":"💳支付",
 "PAY_WITH_COINS_BUTTON":"🪙支付",
 "PENDING_CANCEL_BUTTON":"⌛取消",

@@ -1146,6 +1146,7 @@
  "PLATEGA_PAY_BUTTON": "💳 Оплатити через {method}",
  "PLATEGA_PAYMENT_ALREADY_CONFIRMED": "✅ Платіж вже зараховано",
  "PLATEGA_PAYMENT_STATUS": "Поточний статус платежу: {status}",
+ "PAY_BUTTON": "💳 Оплатити {amount}₽",
  "PAY_NOW_BUTTON": "💳 Оплатити",
  "PAY_WITH_COINS_BUTTON": "🪙 Оплатити",
  "PENDING_CANCEL_BUTTON": "⌛ Скасувати",

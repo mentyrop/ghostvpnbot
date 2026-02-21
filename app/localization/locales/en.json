@@ -1208,6 +1208,7 @@
   "PLATEGA_PAY_BUTTON": "💳 Pay via {method}",
   "PLATEGA_PAYMENT_ALREADY_CONFIRMED": "✅ Payment already credited",
   "PLATEGA_PAYMENT_STATUS": "Current payment status: {status}",
+  "PAY_BUTTON": "💳 Pay {amount}₽",
   "PAY_NOW_BUTTON": "💳 Pay",
   "PAY_WITH_COINS_BUTTON": "🪙 Pay",
   "PENDING_CANCEL_BUTTON": "⌛ Cancel",

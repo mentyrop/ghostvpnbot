@@ -1,9 +1,11 @@
 """Handler for Robokassa balance top-up."""
 
+from urllib.parse import quote
+
 import structlog
 from aiogram import types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -57,14 +59,18 @@ async def _create_robokassa_payment_and_respond(
     payment_url = result.get('payment_url')
     display_name = settings.get_robokassa_display_name()
 
+    # Открытие оплаты в Web App (miniapp), если настроен MINIAPP_CUSTOM_URL
+    pay_button_text = texts.t('PAY_BUTTON', '💳 Оплатить {amount}₽').format(amount=f'{amount_rub:.0f}')
+    miniapp_base = settings.get_main_menu_miniapp_url()
+    if miniapp_base and payment_url:
+        redirect_url = f"{miniapp_base.rstrip('/')}/miniapp/pay-redirect?url={quote(payment_url, safe='')}"
+        pay_button = InlineKeyboardButton(text=pay_button_text, web_app=WebAppInfo(url=redirect_url))
+    else:
+        pay_button = InlineKeyboardButton(text=pay_button_text, url=payment_url)
+
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=texts.t('PAY_BUTTON', '💳 Оплатить {amount}₽').format(amount=f'{amount_rub:.0f}'),
-                    url=payment_url,
-                )
-            ],
+            [pay_button],
             [
                 InlineKeyboardButton(
                     text=texts.t('BACK_BUTTON', '◀️ Назад'),

@@ -1229,6 +1229,7 @@
     "PLATEGA_PAY_BUTTON": "💳 پرداخت از طریق {method}",
     "PLATEGA_PAYMENT_ALREADY_CONFIRMED": "✅ پرداخت قبلاً واریز شده",
     "PLATEGA_PAYMENT_STATUS": "وضعیت فعلی پرداخت: {status}",
+    "PAY_BUTTON": "💳 پرداخت {amount}₽",
     "PAY_NOW_BUTTON": "💳 پرداخت",
     "PAY_WITH_COINS_BUTTON": "🪙 پرداخت",
     "PENDING_CANCEL_BUTTON": "⌛ لغو",
