@@ -97,7 +97,7 @@ git push -u origin main
 
 ```bash
 cd ~
-git clone https://github.com/ТВОЙ_ЛОГИН/ghostvpnbot.git
+git clone https://github.com/mentyrop/ghostvpnbot.git
 cd ghostvpnbot
 ```
 
@@ -118,9 +118,13 @@ nano .env
 
 ### Шаг 3.2. Запуск бота (Docker)
 
+Контейнер бота работает от пользователя с UID 1000. Папки `logs` и `data` на хосте должны быть ему доступны на запись, иначе будет `Permission denied: '/app/logs/bot.log'`.
+
 ```bash
 mkdir -p ./logs ./data ./data/backups ./data/referral_qr
 chmod -R 755 ./logs ./data
+# Контейнер бота работает от UID 1000 — папки должны быть ему доступны на запись
+sudo chown -R 1000:1000 ./logs ./data ./locales
 docker compose up -d --build
 docker compose logs -f bot
 ```
@@ -190,3 +194,101 @@ sudo nginx -t && sudo systemctl reload nginx
   `cd ~/ghostvpnbot` → `git pull origin main` → `docker compose up -d --build` (или `docker compose restart bot`).
 
 Подробнее: [DEPLOY_SERVER_AND_GIT.md](DEPLOY_SERVER_AND_GIT.md). Детали miniapp и диагностика: [MINIAPP_BOT_GHOSTVPN_CC.md](MINIAPP_BOT_GHOSTVPN_CC.md).
+
+---
+
+## Часть 5. Ошибка при pull образов (Docker Hub / IPv6)
+
+Если при `docker compose up` появляется ошибка вида:
+
+```text
+failed to resolve reference "docker.io/library/postgres:15-alpine"
+dial tcp [2a00:...]:443: connect: cannot assign requested address
+```
+
+это сетевая проблема: до Docker Hub нет доступа или не работает IPv6.
+
+**Что сделать на сервере:**
+
+1. **Заставить Docker использовать IPv4** (часто помогает):
+
+   ```bash
+   sudo mkdir -p /etc/docker
+   echo '{"ipv6": false}' | sudo tee /etc/docker/daemon.json
+   sudo systemctl restart docker
+   ```
+
+   Затем снова:
+
+   ```bash
+   cd ~/ghostvpnbot
+   docker compose pull
+   docker compose up -d --build
+   ```
+
+2. **Проверить доступ в интернет к Docker Hub:**
+
+   ```bash
+   curl -v --connect-timeout 5 https://registry-1.docker.io/v2/
+   ```
+
+   Если запрос не проходит — на сервере или у хостера блокируют/режут доступ к Docker Hub. Тогда остаётся:
+   - использовать VPN/прокси на сервере;
+   - или зеркало (registry mirror) в `daemon.json`, если у хостера есть инструкция.
+
+3. **Если образы уже есть на другой машине** — можно сохранить их в файл и загрузить на сервер:
+
+   На машине, где pull работает:
+   ```bash
+   docker save postgres:15-alpine redis:7-alpine -o ghostvpnbot-images.tar
+   ```
+   Передать `ghostvpnbot-images.tar` на сервер (scp, rsync и т.п.), затем на сервере:
+   ```bash
+   docker load -i ghostvpnbot-images.tar
+   docker compose up -d --build
+   ```
+
+---
+
+## Часть 6. Ошибки «Permission denied» для locales и «Name or service not known» для БД
+
+**1. Локали (Locale directory is not writable)**  
+Контейнер пишет в `/app/locales` (это твоя папка `./locales`). Отдай владение пользователю 1000:
+
+```bash
+sudo chown -R 1000:1000 ./locales
+docker compose restart bot
+```
+
+**2. База данных (gaierror: Name or service not known)**  
+Бот не может разрешить имя хоста PostgreSQL — не находит сервер БД.
+
+- **Если БД в том же docker-compose (контейнер postgres):**
+  - В `.env` не переопределяй хост БД для контейнера: убери строку `POSTGRES_HOST=...` или оставь `POSTGRES_HOST=postgres`. В `docker-compose.yml` для сервиса bot уже задано `POSTGRES_HOST: 'postgres'`.
+  - Проверь, что контейнер postgres запущен и в одной сети с ботом:
+    ```bash
+    docker compose ps
+    docker compose exec bot getent hosts postgres
+    ```
+    Второй вызов должен вернуть IP контейнера postgres. Если «getaddrinfo failed» или пусто — проблема с сетью/DNS Docker.
+  - Перезапусти все сервисы и снова проверь логи:
+    ```bash
+    docker compose down && docker compose up -d
+    docker compose logs -f bot
+    ```
+
+- **Если БД внешняя** (отдельный сервер или хостинг): в `.env` указан свой хост в `POSTGRES_HOST` или в `DATABASE_URL`. Тогда с сервера, где крутится бот, хост должен резолвиться и быть доступен по сети (порт 5432). Проверь с хоста: `getent hosts ИМЯ_ХОСТА` и `nc -zv ИМЯ_ХОСТА 5432`. Внутри контейнера имена резолвятся так же, как на хосте, только если не переопределён DNS.
+
+**3. Важно: не переопределяй хост БД через DATABASE_URL при локальном Postgres в Docker**  
+Приложение сначала берёт **DATABASE_URL** из `.env`; если он не пустой, используется именно он (и хост из URL). Имя `postgres` тогда не используется. На сервере в `.env` должно быть так при нашем docker-compose (БД в контейнере postgres):
+
+- **DATABASE_URL** — пустой или закомментирован: `DATABASE_URL=` или `# DATABASE_URL=...`
+- **POSTGRES_HOST=postgres** (без опечаток; не `localhost` — внутри контейнера localhost это сам контейнер)
+
+Проверка, что видит контейнер бота:
+
+```bash
+docker compose exec bot env | grep -E '^POSTGRES_HOST=|^DATABASE_URL='
+```
+
+Ожидается: `POSTGRES_HOST=postgres` и `DATABASE_URL=` (пусто) или отсутствие DATABASE_URL. Если там другой хост или полный DATABASE_URL с другим хостом — исправь `.env` на сервере и перезапусти: `docker compose up -d`.

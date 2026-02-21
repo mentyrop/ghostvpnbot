@@ -47,13 +47,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Явная запись в /etc/hosts (postgres первым в сети bot_network получает .2)
+    extra_hosts:
+      - 'postgres:172.20.0.2'
+      - 'redis:172.20.0.3'
     env_file:
       - .env
     environment:
       FORCE_COLOR: '1'
       DOCKER_ENV: 'true'
       DATABASE_MODE: 'auto'
-      POSTGRES_HOST: 'postgres'
+      # IP контейнера postgres в сети bot_network — обходим DNS при старте
+      POSTGRES_HOST: '172.20.0.2'
       POSTGRES_PORT: '5432'
       POSTGRES_DB: '${POSTGRES_DB:-remnawave_bot}'
       POSTGRES_USER: '${POSTGRES_USER:-remnawave_user}'
