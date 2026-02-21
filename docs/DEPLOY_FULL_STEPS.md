@@ -289,6 +289,44 @@ curl -s -o /dev/null -w "%{http_code}" https://bot.ghostvpn.cc/yookassa-webhook
 
 и т.д. по списку из проекта. Не используй `http://IP:8080/...`.
 
+**Шаг 3.4.9.1. Если оплата Robokassa не проходит**
+
+Сертификат для `bot.ghostvpn.cc` уже есть (проверено `ls /etc/letsencrypt/live/bot.ghostvpn.cc/`). Если оплата всё равно не засчитывается:
+
+1. **Nginx** — в конфиге для `bot.ghostvpn.cc` должны быть:
+   - `ssl_certificate /etc/letsencrypt/live/bot.ghostvpn.cc/fullchain.pem`
+   - `ssl_certificate_key /etc/letsencrypt/live/bot.ghostvpn.cc/privkey.pem`
+   - `location ~ ^/(webhook|.+-webhook)(/|$) { proxy_pass http://127.0.0.1:8080; ... }`
+   Проверка: `sudo nginx -t && sudo systemctl reload nginx`.
+
+2. **Доступность webhook** — с сервера или с другой машины:
+   ```bash
+   curl -s "https://bot.ghostvpn.cc/robokassa-webhook"
+   ```
+   Ожидается JSON с `"service":"robokassa_webhook"` и `"enabled":true`. Если 502/504 — nginx не доходит до бота (проверь, что контейнер бота слушает 8080 и nginx проксирует на него).
+
+3. **Переменные окружения** (в `.env` на сервере):
+   - `ROBOKASSA_ENABLED=true`
+   - `ROBOKASSA_MERCHANT_LOGIN` — логин магазина
+   - `ROBOKASSA_PASSWORD_1` и **`ROBOKASSA_PASSWORD_2`** — пароли из личного кабинета Robokassa (Пароль#2 используется для проверки Result URL). Ошибка в Пароле#2 приводит к «неверная подпись» и отказу в приёме оплаты.
+   После смены `.env`: `cd ~/ghostvpnbot && docker compose up -d --build` (или перезапуск сервиса бота).
+
+4. **Личный кабинет Robokassa:**
+   - **Result URL** — ровно `https://bot.ghostvpn.cc/robokassa-webhook` (без слэша в конце, протокол HTTPS).
+   - Если на сервере включена фильтрация по IP — добавь в белый список: `185.59.216.65`, `185.59.217.65`.
+
+5. **Логи при тестовой оплате** — во время попытки оплаты на сервере выполни:
+   ```bash
+   cd ~/ghostvpnbot && docker compose logs -f bot
+   ```
+   Ищи строки с `Robokassa webhook`:
+   - «неверная подпись» — неверный `ROBOKASSA_PASSWORD_2` или лишние параметры (Shp_*) в запросе.
+   - «запрос с недоверенного IP» — в `.env` задан `ROBOKASSA_TRUSTED_IPS` и IP Robokassa туда не входит; убери переменную или добавь `185.59.216.65,185.59.217.65`.
+   - «платёж не найден» — InvId из уведомления не совпадает с записью в БД (другой инстанс/БД или старый платёж).
+   - «несоответствие суммы» — сумма в уведомлении не совпадает с ожидаемой (допуск 0.01).
+
+6. **Ответ сервера** — при успешной проверке бот должен ответить Robokassa текстом `OK{InvId}` (например, `OK450009`). Любой другой ответ или 4xx/5xx Robokassa считает ошибкой и может повторять запрос; в логах будет видно причину (подпись, IP, платёж, сумма).
+
 **Кратко по порядку:** (1) зайти на сервер и в каталог проекта, (2) при необходимости обновить репо, (3) скопировать/обновить конфиг nginx, (4) поправить `root` и при отсутствии — добавить блок webhook'ов, (5) проверить SSL-пути, (6) включить сайт и `nginx -t`, (7) `systemctl reload nginx`, (8) проверить ответ webhook'а через curl, (9) в кассе прописать URL вида `https://bot.ghostvpn.cc/...-webhook`.
 
 **Шаг 3.4.10. Один порт 443 для бота и панели**

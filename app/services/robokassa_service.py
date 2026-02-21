@@ -71,7 +71,8 @@ class RobokassaService:
         receipt: dict = {'items': [item]}
         if sno:
             receipt['sno'] = sno
-        return json.dumps(receipt, ensure_ascii=False)
+        # Минимизированный JSON без пробелов (требование Robokassa для подписи)
+        return json.dumps(receipt, ensure_ascii=False, separators=(',', ':'))
 
     def build_signature_for_request(
         self,
@@ -144,12 +145,14 @@ class RobokassaService:
             receipt_json = self._build_receipt_json(out_sum, item_name)
             receipt_encoded = quote(receipt_json, safe='')
 
+        # OutSum в подписи и в URL должен совпадать (формат с двумя знаками после запятой)
+        out_sum_str = f'{out_sum:.2f}'
         signature = self.build_signature_for_request(
             out_sum, inv_id, receipt_encoded=receipt_encoded
         )
         params = {
             'MerchantLogin': self.login,
-            'OutSum': out_sum,
+            'OutSum': out_sum_str,
             'InvId': inv_id,
             'Description': description,
             'SignatureValue': signature,
