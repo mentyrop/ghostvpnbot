@@ -57,12 +57,13 @@ services:
       FORCE_COLOR: '1'
       DOCKER_ENV: 'true'
       DATABASE_MODE: 'auto'
-      # IP контейнера postgres в сети bot_network — обходим DNS при старте
       POSTGRES_HOST: '172.20.0.2'
       POSTGRES_PORT: '5432'
       POSTGRES_DB: '${POSTGRES_DB:-remnawave_bot}'
       POSTGRES_USER: '${POSTGRES_USER:-remnawave_user}'
       POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-secure_password_123}'
+      # Явный URL с IP — приоритет над сборкой из POSTGRES_*; пароль не должен содержать @ или #
+      DATABASE_URL: 'postgresql+asyncpg://${POSTGRES_USER:-remnawave_user}:${POSTGRES_PASSWORD}@172.20.0.2:5432/${POSTGRES_DB:-remnawave_bot}'
 
       REDIS_URL: 'redis://redis:6379/0'
 

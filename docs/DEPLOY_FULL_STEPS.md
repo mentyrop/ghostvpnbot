@@ -261,34 +261,45 @@ docker compose restart bot
 ```
 
 **2. База данных (gaierror: Name or service not known)**  
-Бот не может разрешить имя хоста PostgreSQL — не находит сервер БД.
+Бот не может разрешить имя хоста PostgreSQL. В `docker-compose.yml` для сервиса bot уже заданы **POSTGRES_HOST=172.20.0.2** и **DATABASE_URL** с этим IP, чтобы не зависеть от DNS.
 
-- **Если БД в том же docker-compose (контейнер postgres):**
-  - В `.env` не переопределяй хост БД для контейнера: убери строку `POSTGRES_HOST=...` или оставь `POSTGRES_HOST=postgres`. В `docker-compose.yml` для сервиса bot уже задано `POSTGRES_HOST: 'postgres'`.
-  - Проверь, что контейнер postgres запущен и в одной сети с ботом:
-    ```bash
-    docker compose ps
-    docker compose exec bot getent hosts postgres
-    ```
-    Второй вызов должен вернуть IP контейнера postgres. Если «getaddrinfo failed» или пусто — проблема с сетью/DNS Docker.
-  - Перезапусти все сервисы и снова проверь логи:
-    ```bash
-    docker compose down && docker compose up -d
-    docker compose logs -f bot
-    ```
+- Убедись, что на сервере актуальный `docker-compose.yml` из репо (после `git pull`). В нём у сервиса `bot` в `environment` должны быть `POSTGRES_HOST: '172.20.0.2'` и строка `DATABASE_URL: 'postgresql+asyncpg://...@172.20.0.2:5432/...'`.
+- В `.env` на сервере задай **POSTGRES_PASSWORD** (и при необходимости POSTGRES_USER/POSTGRES_DB). Строку **DATABASE_URL** в `.env` лучше не задавать — тогда подставится URL из compose с IP. Если пароль содержит символы **@** или **#**, либо смени пароль, либо в compose закомментируй строку `DATABASE_URL: '...'` — тогда приложение соберёт URL из POSTGRES_HOST и POSTGRES_PASSWORD.
+- Пересоздай контейнеры, чтобы подхватить переменные:
+  ```bash
+  docker compose down
+  docker compose up -d --build
+  docker compose logs -f bot
+  ```
+- Проверка, что контейнер бота видит хост по IP:
+  ```bash
+  docker compose exec bot env | grep -E '^POSTGRES_HOST=|^DATABASE_URL='
+  ```
+  Должно быть `POSTGRES_HOST=172.20.0.2` и `DATABASE_URL=postgresql+asyncpg://...@172.20.0.2:5432/...` (или только POSTGRES_HOST, если DATABASE_URL закомментирован).
 
-- **Если БД внешняя** (отдельный сервер или хостинг): в `.env` указан свой хост в `POSTGRES_HOST` или в `DATABASE_URL`. Тогда с сервера, где крутится бот, хост должен резолвиться и быть доступен по сети (порт 5432). Проверь с хоста: `getent hosts ИМЯ_ХОСТА` и `nc -zv ИМЯ_ХОСТА 5432`. Внутри контейнера имена резолвятся так же, как на хосте, только если не переопределён DNS.
+- **Если БД внешняя** (отдельный сервер): в `.env` укажи свой хост в `POSTGRES_HOST` или в `DATABASE_URL`. С сервера хост должен резолвиться: `getent hosts ИМЯ_ХОСТА` и `nc -zv ИМЯ_ХОСТА 5432`.
 
-**3. Важно: не переопределяй хост БД через DATABASE_URL при локальном Postgres в Docker**  
-Приложение сначала берёт **DATABASE_URL** из `.env`; если он не пустой, используется именно он (и хост из URL). Имя `postgres` тогда не используется. На сервере в `.env` должно быть так при нашем docker-compose (БД в контейнере postgres):
+**3. Чистый пересоздание (если ошибка «Name or service not known» не исчезает)**  
+Чтобы убрать влияние старого состояния (раньше крутили локально, потом перенесли на сервер):
 
-- **DATABASE_URL** — пустой или закомментирован: `DATABASE_URL=` или `# DATABASE_URL=...`
-- **POSTGRES_HOST=postgres** (без опечаток; не `localhost` — внутри контейнера localhost это сам контейнер)
-
-Проверка, что видит контейнер бота:
-
-```bash
-docker compose exec bot env | grep -E '^POSTGRES_HOST=|^DATABASE_URL='
-```
-
-Ожидается: `POSTGRES_HOST=postgres` и `DATABASE_URL=` (пусто) или отсутствие DATABASE_URL. Если там другой хост или полный DATABASE_URL с другим хостом — исправь `.env` на сервере и перезапусти: `docker compose up -d`.
+1. На сервере обнови код и убедись, что в compose заданы хост по IP и DATABASE_URL:
+   ```bash
+   cd ~/ghostvpnbot
+   git pull origin main
+   grep -A2 POSTGRES_HOST docker-compose.yml
+   ```
+2. В `.env` задай только нужные переменные (BOT_TOKEN, ADMIN_IDS, **POSTGRES_PASSWORD** и т.д.). Не задавай `DATABASE_URL=` с хостом `postgres` или другим именем.
+3. Останови всё и удали тома (**данные БД будут удалены**):
+   ```bash
+   docker compose down -v
+   ```
+4. Запусти заново:
+   ```bash
+   docker compose up -d --build
+   docker compose logs -f bot
+   ```
+5. Если после этого ошибка остаётся — проверь, что внутри контейнера реально подхватился URL с IP:
+   ```bash
+   docker compose run --rm --no-deps bot env | grep -E 'POSTGRES_HOST|DATABASE_URL'
+   ```
+   Должно быть `172.20.0.2` в одной из переменных.
