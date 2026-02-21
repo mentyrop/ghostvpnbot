@@ -290,6 +290,34 @@ curl -s -o /dev/null -w "%{http_code}" https://bot.ghostvpn.cc/yookassa-webhook
 
 **Кратко по порядку:** (1) зайти на сервер и в каталог проекта, (2) при необходимости обновить репо, (3) скопировать/обновить конфиг nginx, (4) поправить `root` и при отсутствии — добавить блок webhook'ов, (5) проверить SSL-пути, (6) включить сайт и `nginx -t`, (7) `systemctl reload nginx`, (8) проверить ответ webhook'а через curl, (9) в кассе прописать URL вида `https://bot.ghostvpn.cc/...-webhook`.
 
+**Шаг 3.4.10. Один порт 443 для бота и панели**
+
+Если на том же сервере стоит панель в Docker и она занимает 443, nginx не сможет стартовать. Настрой один nginx на 443 с маршрутизацией по домену:
+
+1. **Панель:** в `docker-compose` панели замени проброс порта с `443:443` (или `443:80`) на **только localhost**, например:
+   ```yaml
+   ports:
+     - "127.0.0.1:8443:443"   # или 8443:80, если внутри контейнера слушает 80
+   ```
+   Перезапусти контейнеры панели (`docker compose up -d` в каталоге панели). Порт 443 на хосте освободится.
+
+2. **Nginx:** используй объединённый конфиг из `deploy/nginx-bot.ghostvpn.cc.conf.example` — в нём два блока: для `bot.ghostvpn.cc` (прокси на 127.0.0.1:8080) и для домена панели (прокси на 127.0.0.1:8443). В конфиге замени:
+   - `PANEL_DOMAIN` на реальный домен панели (например `panel.ghostvpn.cc`);
+   - пути к SSL-сертификату панели: `/etc/letsencrypt/live/PANEL_DOMAIN/...` на свои (при необходимости получи сертификат: `sudo certbot certonly -d panel.ghostvpn.cc`).
+
+3. Убедись, что в `sites-enabled` нет конфига `default`, который слушает 443. Перезагрузи nginx: `sudo nginx -t && sudo systemctl reload nginx`. Проверь: `https://bot.ghostvpn.cc` и `https://домен-панели`.
+
+**Шаг 3.4.11. Бот на порту 8443 (панель на 443)**
+
+Если панель остаётся на 443 и не трогаешь её, вебхуки и miniapp бота можно повесить на отдельный порт **8443**:
+
+1. Используй конфиг `deploy/nginx-bot-port-8443.conf.example`: в нём один `server` на порту **8443** для `bot.ghostvpn.cc` (прокси на 127.0.0.1:8080). Замени путь `root` на путь к miniapp на сервере.
+2. Скопируй в `/etc/nginx/sites-available/bot.ghostvpn.cc`, включи через `sites-enabled`, открой порт в файрволе: `sudo ufw allow 8443/tcp && sudo ufw reload`.
+3. Запусти nginx: `sudo nginx -t && sudo systemctl start nginx && sudo systemctl enable nginx`.
+4. В кассе указывай webhook: `https://bot.ghostvpn.cc:8443/yookassa-webhook` (и т.д.). Miniapp в BotFather: `https://bot.ghostvpn.cc:8443`.
+
+Часть касс не поддерживает нестандартный порт в URL; тогда единственный вариант — один nginx на 443 (шаг 3.4.10).
+
 ### Шаг 3.5. Настройка бота и BotFather
 
 1. В админке бота (в Telegram): **Конфигурации бота → Прочее → Miniapp** — укажи URL miniapp: `https://bot.ghostvpn.cc`.

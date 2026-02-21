@@ -1,12 +1,14 @@
-# Nginx: miniapp и платёжные webhook'и на bot.ghostvpn.cc
-# Скопируй в /etc/nginx/sites-available/bot.ghostvpn.cc
-# и замени путь root на путь к папке miniapp на сервере (например /home/user/ghostvpnbot/miniapp).
+# Nginx: один порт 443 для бота (bot.ghostvpn.cc) и панели (второй домен).
+# Скопируй в /etc/nginx/sites-available/bot.ghostvpn.cc (или объединённый конфиг).
+# 1) Замени путь root на путь к miniapp (например /root/ghostvpnbot/miniapp).
+# 2) В блоке панели замени PANEL_DOMAIN на домен панели и пути к её SSL-сертификату.
+# 3) Панель в Docker должна слушать 127.0.0.1:8443 (не 443), чтобы 443 был свободен для nginx.
 # Включи: sudo ln -s /etc/nginx/sites-available/bot.ghostvpn.cc /etc/nginx/sites-enabled/
 # Проверь: sudo nginx -t && sudo systemctl reload nginx
 #
-# Важно для касс: все URL должны быть на домене не ниже второго уровня (не IP:port).
-# Callback/webhook URL задавай как https://bot.ghostvpn.cc/...-webhook (см. блок ниже).
+# Кассы: webhook URL задавай как https://bot.ghostvpn.cc/yookassa-webhook и т.д.
 
+# ---------- Бот: bot.ghostvpn.cc ----------
 server {
     listen 80;
     server_name bot.ghostvpn.cc;
@@ -52,5 +54,33 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# ---------- Панель: один порт 443 по домену (замени PANEL_DOMAIN и пути к сертификату) ----------
+# Панель в docker-compose: ports: ["127.0.0.1:8443:443"] (или 8443:80), чтобы не занимать 443.
+server {
+    listen 80;
+    server_name PANEL_DOMAIN;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name PANEL_DOMAIN;
+
+    ssl_certificate     /etc/letsencrypt/live/PANEL_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/PANEL_DOMAIN/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8443;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
     }
 }

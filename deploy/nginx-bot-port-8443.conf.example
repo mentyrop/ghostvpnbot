@@ -1,0 +1,51 @@
+# Nginx: только бот (bot.ghostvpn.cc) на порту 8443 — вебхуки и miniapp.
+# Панель остаётся на 443. Конфликта портов нет.
+#
+# 1) Замени /путь/к/ghostvpnbot/miniapp на реальный путь (например /root/ghostvpnbot/miniapp).
+# 2) Скопируй в /etc/nginx/sites-available/bot.ghostvpn.cc
+# 3) Включи: sudo ln -s /etc/nginx/sites-available/bot.ghostvpn.cc /etc/nginx/sites-enabled/
+# 4) Открой порт 8443 в файрволе: sudo ufw allow 8443/tcp && sudo ufw reload
+# 5) sudo nginx -t && sudo systemctl start nginx && sudo systemctl enable nginx
+#
+# В кассе указывай: https://bot.ghostvpn.cc:8443/yookassa-webhook (и т.д.)
+# Miniapp URL в BotFather: https://bot.ghostvpn.cc:8443
+
+server {
+    listen 8443 ssl http2;
+    server_name bot.ghostvpn.cc;
+
+    ssl_certificate     /etc/letsencrypt/live/bot.ghostvpn.cc/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bot.ghostvpn.cc/privkey.pem;
+
+    root /путь/к/ghostvpnbot/miniapp;
+    index index.html;
+
+    location = /app-config.json {
+        add_header Access-Control-Allow-Origin "*";
+        try_files $uri =404;
+    }
+
+    location ~ ^/(webhook|.+-webhook)(/|$) {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    location / {
+        try_files $uri /index.html =404;
+    }
+
+    location /miniapp/ {
+        proxy_pass http://127.0.0.1:8080/miniapp/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
