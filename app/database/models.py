@@ -154,6 +154,7 @@ class PaymentMethod(Enum):
     CLOUDPAYMENTS = 'cloudpayments'
     FREEKASSA = 'freekassa'
     KASSA_AI = 'kassa_ai'
+    ROBOKASSA = 'robokassa'
     MANUAL = 'manual'
     BALANCE = 'balance'
 
@@ -711,6 +712,62 @@ class KassaAiPayment(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f'<KassaAiPayment(id={self.id}, order_id={self.order_id}, amount={self.amount_rubles}₽, status={self.status})>'
+
+
+class RobokassaPayment(Base):
+    """Платежи через Robokassa (https://robokassa.ru)."""
+
+    __tablename__ = 'robokassa_payments'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # InvId — номер счёта в магазине (целое число, обязателен для Robokassa)
+    inv_id = Column(Integer, unique=True, nullable=False, index=True)
+    order_id = Column(String(64), unique=True, nullable=False, index=True)  # Наш внутренний ID (rk_...)
+
+    # Суммы
+    amount_kopeks = Column(Integer, nullable=False)
+    currency = Column(String(10), nullable=False, default='RUB')
+    description = Column(Text, nullable=True)
+
+    # Статусы
+    status = Column(String(32), nullable=False, default='pending')
+    is_paid = Column(Boolean, default=False)
+
+    # Данные платежа
+    payment_url = Column(Text, nullable=True)
+
+    # Временные метки
+    paid_at = Column(AwareDateTime(), nullable=True)
+    expires_at = Column(AwareDateTime(), nullable=True)
+    created_at = Column(AwareDateTime(), default=func.now())
+    updated_at = Column(AwareDateTime(), default=func.now(), onupdate=func.now())
+
+    # Связь с транзакцией
+    transaction_id = Column(Integer, ForeignKey('transactions.id'), nullable=True)
+
+    user = relationship('User', backref='robokassa_payments')
+    transaction = relationship('Transaction', backref='robokassa_payment')
+
+    @property
+    def amount_rubles(self) -> float:
+        return self.amount_kopeks / 100
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status == 'pending'
+
+    @property
+    def is_success(self) -> bool:
+        return self.status == 'success' and self.is_paid
+
+    @property
+    def is_failed(self) -> bool:
+        return self.status in ['failed', 'expired']
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f'<RobokassaPayment(id={self.id}, inv_id={self.inv_id}, amount={self.amount_rubles}₽, status={self.status})>'
 
 
 class PromoGroup(Base):

@@ -285,6 +285,7 @@ curl -s -o /dev/null -w "%{http_code}" https://bot.ghostvpn.cc/yookassa-webhook
 - ЮKassa: `https://bot.ghostvpn.cc/yookassa-webhook`
 - CloudPayments: `https://bot.ghostvpn.cc/cloudpayments-webhook`
 - FreeKassa: `https://bot.ghostvpn.cc/freekassa-webhook`
+- Robokassa: **Result URL** — `https://bot.ghostvpn.cc/robokassa-webhook`
 
 и т.д. по списку из проекта. Не используй `http://IP:8080/...`.
 

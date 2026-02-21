@@ -1611,6 +1611,18 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
         )
         has_direct_payment_methods = True
 
+    if settings.is_robokassa_enabled():
+        robokassa_name = settings.get_robokassa_display_name()
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=texts.t('PAYMENT_ROBOKASSA', f'💳 {robokassa_name}'),
+                    callback_data=_build_callback('robokassa'),
+                )
+            ]
+        )
+        has_direct_payment_methods = True
+
     if settings.is_kassa_ai_enabled():
         kassa_ai_name = settings.get_kassa_ai_display_name()
         keyboard.append(

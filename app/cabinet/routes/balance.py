@@ -895,7 +895,12 @@ def _get_payment_url(record: PendingPayment) -> str | None:
         )
     elif record.method == PaymentMethod.PLATEGA:
         payment_url = getattr(payment, 'redirect_url', None) or payment_url
-    elif record.method in (PaymentMethod.CLOUDPAYMENTS, PaymentMethod.FREEKASSA, PaymentMethod.KASSA_AI):
+    elif record.method in (
+        PaymentMethod.CLOUDPAYMENTS,
+        PaymentMethod.FREEKASSA,
+        PaymentMethod.KASSA_AI,
+        PaymentMethod.ROBOKASSA,
+    ):
         payment_url = getattr(payment, 'payment_url', None) or payment_url
 
     return payment_url

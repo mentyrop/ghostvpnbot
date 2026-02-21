@@ -120,6 +120,13 @@ async def route_payment_by_method(
             await process_freekassa_payment_amount(message, db_user, db, amount_kopeks, state)
         return True
 
+    if payment_method == 'robokassa':
+        from .robokassa import process_robokassa_payment_amount
+
+        async with AsyncSessionLocal() as db:
+            await process_robokassa_payment_amount(message, db_user, db, amount_kopeks, state)
+        return True
+
     if payment_method == 'kassa_ai':
         from .kassa_ai import process_kassa_ai_payment_amount
 
@@ -842,6 +849,11 @@ def register_balance_handlers(dp: Dispatcher):
 
     dp.callback_query.register(start_freekassa_topup, F.data == 'topup_freekassa')
     dp.callback_query.register(process_freekassa_quick_amount, F.data.startswith('topup_amount|freekassa|'))
+
+    from .robokassa import process_robokassa_quick_amount, start_robokassa_topup
+
+    dp.callback_query.register(start_robokassa_topup, F.data == 'topup_robokassa')
+    dp.callback_query.register(process_robokassa_quick_amount, F.data.startswith('topup_amount|robokassa|'))
 
     from .kassa_ai import process_kassa_ai_quick_amount, start_kassa_ai_topup
 

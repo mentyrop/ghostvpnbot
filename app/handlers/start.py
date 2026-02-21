@@ -534,6 +534,7 @@ async def cmd_start(message: types.Message, state: FSMContext, db: AsyncSession,
                 PlategaPayment,
                 PromoCodeUse,
                 ReferralEarning,
+                RobokassaPayment,
                 SubscriptionServer,
                 Transaction,
                 WataPayment,
@@ -578,6 +579,7 @@ async def cmd_start(message: types.Message, state: FSMContext, db: AsyncSession,
                 CloudPaymentsPayment,
                 FreekassaPayment,
                 KassaAiPayment,
+                RobokassaPayment,
             ]
             for payment_model in payment_models:
                 await db.execute(
