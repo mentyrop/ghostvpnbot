@@ -179,7 +179,118 @@ sudo nginx -t && sudo systemctl reload nginx
 
 5. Проверка в браузере: открой `https://bot.ghostvpn.cc` — должна открыться страница miniapp (вне Telegram может быть сообщение «Откройте из бота» или загрузка).
 
-### Шаг 3.4. Настройка бота и BotFather
+### Шаг 3.4. Nginx для платёжных касс (webhook'и на домене)
+
+Чтобы кассы (ЮKassa, CloudPayments и др.) могли слать уведомления на бота, нужен URL вида **https://bot.ghostvpn.cc/yookassa-webhook** (домен не ниже второго уровня, не IP:port). Ниже — по порядку, что сделать на сервере.
+
+**Шаг 3.4.1. Подключись к серверу и перейди в каталог проекта**
+
+```bash
+ssh root@ТВОЙ_IP
+# или: ssh ubuntu@ТВОЙ_IP
+cd ~/ghostvpnbot
+```
+
+**Шаг 3.4.2. Обнови репозиторий (если конфиг nginx хранится в репо)**
+
+```bash
+git pull origin main
+```
+
+**Шаг 3.4.3. Скопируй пример конфига Nginx в sites-available**
+
+```bash
+sudo cp deploy/nginx-bot.ghostvpn.cc.conf.example /etc/nginx/sites-available/bot.ghostvpn.cc
+```
+
+Если файл `/etc/nginx/sites-available/bot.ghostvpn.cc` уже есть и ты его раньше правил вручную — не перезаписывай, а открой его для редактирования и добавь блок webhook'ов из примера (см. шаг 3.4.4).
+
+**Шаг 3.4.4. Открой конфиг и поправь путь к miniapp**
+
+```bash
+sudo nano /etc/nginx/sites-available/bot.ghostvpn.cc
+```
+
+- Найди строку `root /путь/к/ghostvpnbot/miniapp;`.
+- Замени на реальный путь к папке miniapp на сервере, например:
+  - `root /root/ghostvpnbot/miniapp;` (если заходишь под root и проект в /root/ghostvpnbot)
+  - или `root /home/ubuntu/ghostvpnbot/miniapp;` (если пользователь ubuntu и проект в домашней папке)
+- Убедись, что в конфиге есть блок для webhook'ов (проксирование на 8080):
+
+```nginx
+    location ~ ^/(webhook|.+-webhook)(/|$) {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+```
+
+Если этого блока нет — добавь его внутри `server { ... }` для 443, **выше** блока `location /`. Сохрани файл: в nano — `Ctrl+O`, Enter, затем `Ctrl+X`.
+
+**Шаг 3.4.5. Проверь пути к SSL-сертификатам**
+
+В том же файле должны быть строки:
+
+- `ssl_certificate     /etc/letsencrypt/live/bot.ghostvpn.cc/fullchain.pem;`
+- `ssl_certificate_key /etc/letsencrypt/live/bot.ghostvpn.cc/privkey.pem;`
+
+Если сертификат у тебя для другого домена или в другом пути — замени на свои. Проверка наличия файлов:
+
+```bash
+sudo ls -la /etc/letsencrypt/live/bot.ghostvpn.cc/
+```
+
+**Шаг 3.4.6. Включи сайт и проверь конфигурацию Nginx**
+
+```bash
+sudo ln -sf /etc/nginx/sites-available/bot.ghostvpn.cc /etc/nginx/sites-enabled/
+sudo nginx -t
+```
+
+Ожидается строка: `syntax is ok` и `test is successful`. Если есть ошибки — исправь конфиг по сообщениям.
+
+**Шаг 3.4.7. Применить конфиг (перезагрузить Nginx)**
+
+```bash
+sudo systemctl reload nginx
+```
+
+**Шаг 3.4.8. Проверить, что бот слушает 8080 и webhook отвечает**
+
+Убедись, что контейнер бота запущен:
+
+```bash
+cd ~/ghostvpnbot
+docker compose ps
+```
+
+Должен быть запущен сервис `remnawave_bot`. Затем проверь, что через домен до webhook'а доходят запросы (например, ЮKassa часто делает GET для проверки):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" https://bot.ghostvpn.cc/yookassa-webhook
+```
+
+Код ответа может быть 200, 405 (Method Not Allowed для GET — для ЮKassa норма) или другой не 502/504. Главное — не 502 Bad Gateway (значит nginx до бота не доходит).
+
+**Шаг 3.4.9. Что указывать в личном кабинете кассы**
+
+В настройках платёжной системы укажи URL на домене, например:
+
+- ЮKassa: `https://bot.ghostvpn.cc/yookassa-webhook`
+- CloudPayments: `https://bot.ghostvpn.cc/cloudpayments-webhook`
+- FreeKassa: `https://bot.ghostvpn.cc/freekassa-webhook`
+
+и т.д. по списку из проекта. Не используй `http://IP:8080/...`.
+
+**Кратко по порядку:** (1) зайти на сервер и в каталог проекта, (2) при необходимости обновить репо, (3) скопировать/обновить конфиг nginx, (4) поправить `root` и при отсутствии — добавить блок webhook'ов, (5) проверить SSL-пути, (6) включить сайт и `nginx -t`, (7) `systemctl reload nginx`, (8) проверить ответ webhook'а через curl, (9) в кассе прописать URL вида `https://bot.ghostvpn.cc/...-webhook`.
+
+### Шаг 3.5. Настройка бота и BotFather
 
 1. В админке бота (в Telegram): **Конфигурации бота → Прочее → Miniapp** — укажи URL miniapp: `https://bot.ghostvpn.cc`.
 2. Перезапусти бота: `docker compose restart bot`.
