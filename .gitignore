@@ -33,6 +33,14 @@
 # Статические файлы
 !vpn_logo.png
 
+# Miniapp (статическая страница для Telegram WebApp)
+!miniapp/
+!miniapp/**
+
+# Deploy (примеры конфигов для сервера)
+!deploy/
+!deploy/**
+
 # ========== WHITELIST: разрешённые папки ==========
 
 !app/

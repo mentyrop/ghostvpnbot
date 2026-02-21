@@ -1,0 +1,192 @@
+# Пошаговый деплой: локально → GitHub → сервер
+
+Сборка проекта на локальном диске, выкладка на GitHub и установка на сервере (включая miniapp на bot.ghostvpn.cc).
+
+---
+
+## Часть 1. Сборка на локальном диске
+
+### Шаг 1.1. Проверь структуру проекта
+
+В корне проекта `ghostvpnbot` должны быть:
+
+- `app/`, `docs/`, `migrations/`, `locales/` — код и ресурсы
+- `miniapp/` — папка miniapp с `index.html` и `app-config.json`
+- `deploy/` — пример конфига nginx для bot.ghostvpn.cc
+- `.env.example`, `docker-compose.yml`, `Dockerfile`, `main.py`
+
+Если папок `miniapp/` или `deploy/` нет — они уже добавлены в репозиторий; обнови файлы из репо (`git pull` или скопируй из текущего состояния проекта).
+
+### Шаг 1.2. Локальный .env (не коммитить)
+
+Для локальной проверки (по желанию):
+
+```powershell
+copy .env.example .env
+# Открой .env и заполни минимум: BOT_TOKEN, ADMIN_IDS, REMNAWAVE_API_URL, REMNAWAVE_API_KEY
+```
+
+Файл `.env` в репозиторий не попадает (он в `.gitignore`).
+
+### Шаг 1.3. Убедись, что в коммит не попадут лишние файлы
+
+Проверка в корне проекта:
+
+```powershell
+git status
+```
+
+В списке не должно быть `.env`. Должны быть видны изменения в `miniapp/`, `deploy/`, `docs/`, `.gitignore` (если ты их менял).
+
+### Шаг 1.4. Что будет залито на GitHub
+
+- Весь код: `app/`, `tests/`, `migrations/`, `locales/`, `docs/`, `assets/`, `.github/`
+- Конфиги: `.env.example`, `docker-compose.yml`, `Dockerfile`, `Makefile`, `pyproject.toml`, `requirements.txt`, `alembic.ini` и т.д.
+- Miniapp: `miniapp/index.html`, `miniapp/app-config.json`
+- Deploy: `deploy/nginx-bot.ghostvpn.cc.conf.example`
+- Документация: `README.md`, `docs/DEPLOY_SERVER_AND_GIT.md`, `docs/MINIAPP_BOT_GHOSTVPN_CC.md`, `docs/DEPLOY_FULL_STEPS.md` (этот файл)
+
+Не попадут: `.env`, `logs/`, `data/`, `*.log`, виртуальные окружения.
+
+---
+
+## Часть 2. Выкладка на GitHub
+
+### Шаг 2.1. Закоммитить и отправить
+
+В корне проекта выполни:
+
+```powershell
+git add .
+git status
+```
+
+Проверь список: не должно быть `.env`. Затем:
+
+```powershell
+git commit -m "Add miniapp, deploy config and full deploy docs"
+git push origin main
+```
+
+Если ветка называется иначе (например `master`), подставь её имя. Если remote ещё не настроен:
+
+```powershell
+git remote add origin https://github.com/ТВОЙ_ЛОГИН/ghostvpnbot.git
+git push -u origin main
+```
+
+### Шаг 2.2. Проверка на GitHub
+
+Зайди в репозиторий на GitHub и убедись, что есть:
+
+- папка `miniapp/` с `index.html` и `app-config.json`;
+- папка `deploy/` с примером nginx;
+- актуальные `docs/`.
+
+После этого переходи к установке на сервере.
+
+---
+
+## Часть 3. Установка на сервере
+
+Сервер: Linux с установленными **Docker**, **Docker Compose**, **Git** и (для miniapp) **Nginx** и **certbot**.
+
+### Шаг 3.1. Клонирование и подготовка
+
+На сервере:
+
+```bash
+cd ~
+git clone https://github.com/ТВОЙ_ЛОГИН/ghostvpnbot.git
+cd ghostvpnbot
+```
+
+Создай `.env` из примера и заполни под свой сервер:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Обязательно заполни:
+
+- `BOT_TOKEN`, `ADMIN_IDS`
+- `POSTGRES_PASSWORD` (надёжный пароль)
+- `REMNAWAVE_API_URL`, `REMNAWAVE_API_KEY` (панель на этом сервере или доступная по сети)
+- Для webhook: `BOT_RUN_MODE=webhook`, `WEBHOOK_URL`, `WEBHOOK_PATH`, `WEBHOOK_SECRET_TOKEN`
+- Для miniapp: `WEB_API_ENABLED=true`, `WEB_API_ALLOWED_ORIGINS=https://bot.ghostvpn.cc`, `WEB_API_DEFAULT_TOKEN=<openssl rand -hex 32>`, `CONNECT_BUTTON_MODE=miniapp_subscription`
+
+### Шаг 3.2. Запуск бота (Docker)
+
+```bash
+mkdir -p ./logs ./data ./data/backups ./data/referral_qr
+chmod -R 755 ./logs ./data
+docker compose up -d --build
+docker compose logs -f bot
+```
+
+Убедись, что бот стартует без ошибок. Проверка здоровья API (если включён):
+
+```bash
+curl -s -H "X-API-Key: ВАШ_WEB_API_DEFAULT_TOKEN" http://127.0.0.1:8080/health
+```
+
+### Шаг 3.3. Nginx и miniapp на bot.ghostvpn.cc
+
+1. Установи Nginx и certbot (если ещё не стоят):
+
+```bash
+sudo apt update && sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+2. SSL-сертификат для bot.ghostvpn.cc (сначала Nginx не должен занимать 80 порт для этого домена, или используй certbot в режиме standalone/webroot по инструкции):
+
+```bash
+sudo certbot certonly --standalone -d bot.ghostvpn.cc --agree-tos --email твой@email.com --non-interactive
+```
+
+Либо через плагин nginx после добавления конфига с `server_name bot.ghostvpn.cc`:
+
+```bash
+sudo certbot --nginx -d bot.ghostvpn.cc --agree-tos --email твой@email.com --non-interactive
+```
+
+3. Конфиг Nginx для bot.ghostvpn.cc:
+
+Скопируй пример и подставь путь к папке miniapp (на сервере это каталог внутри клонированного репо):
+
+```bash
+sudo cp deploy/nginx-bot.ghostvpn.cc.conf.example /etc/nginx/sites-available/bot.ghostvpn.cc
+sudo nano /etc/nginx/sites-available/bot.ghostvpn.cc
+```
+
+Замени строку с `root` на реальный путь, например:
+
+- `root /home/ubuntu/ghostvpnbot/miniapp;` (подставь своего пользователя и путь к репо).
+
+В блоке `location /miniapp/` оставь `proxy_pass http://127.0.0.1:8080/miniapp/;` если бот слушает на том же сервере на порту 8080.
+
+4. Включи сайт и перезагрузи Nginx:
+
+```bash
+sudo ln -sf /etc/nginx/sites-available/bot.ghostvpn.cc /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+5. Проверка в браузере: открой `https://bot.ghostvpn.cc` — должна открыться страница miniapp (вне Telegram может быть сообщение «Откройте из бота» или загрузка).
+
+### Шаг 3.4. Настройка бота и BotFather
+
+1. В админке бота (в Telegram): **Конфигурации бота → Прочее → Miniapp** — укажи URL miniapp: `https://bot.ghostvpn.cc`.
+2. Перезапусти бота: `docker compose restart bot`.
+3. При необходимости в **@BotFather**: `/setmenu` → Web App URL: `https://bot.ghostvpn.cc`.
+
+---
+
+## Часть 4. Дальнейшие обновления
+
+- **Локально:** правки → `git add .` → `git commit -m "..."` → `git push origin main`.
+- **На сервере:**  
+  `cd ~/ghostvpnbot` → `git pull origin main` → `docker compose up -d --build` (или `docker compose restart bot`).
+
+Подробнее: [DEPLOY_SERVER_AND_GIT.md](DEPLOY_SERVER_AND_GIT.md). Детали miniapp и диагностика: [MINIAPP_BOT_GHOSTVPN_CC.md](MINIAPP_BOT_GHOSTVPN_CC.md).

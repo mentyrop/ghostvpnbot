@@ -1,0 +1,17 @@
+{
+  "config": {
+    "additionalLocales": ["ru", "en"],
+    "branding": {
+      "name": "GhostVPN",
+      "logoUrl": "",
+      "supportUrl": "https://t.me"
+    }
+  },
+  "platforms": {
+    "ios": [],
+    "android": [],
+    "macos": [],
+    "windows": [],
+    "linux": []
+  }
+}

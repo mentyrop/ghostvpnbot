@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GhostVPN — Подписка</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); }
+    h1 { font-size: 1.25rem; margin-top: 0; }
+    .status { padding: 12px; border-radius: 8px; margin: 12px 0; }
+    .status.loading { background: #f0f0f0; }
+    .status.error { background: #ffebee; color: #c62828; }
+    .status.ok { background: #e8f5e9; color: #2e7d32; }
+    .link-list { list-style: none; padding: 0; }
+    .link-list a { display: block; padding: 10px; margin: 6px 0; background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border-radius: 8px; text-decoration: none; text-align: center; }
+    .link-list a:active { opacity: 0.9; }
+    .meta { font-size: 0.875rem; color: var(--tg-theme-hint-color, #666); margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Подписка GhostVPN</h1>
+  <div id="root" class="status loading">Загрузка…</div>
+
+  <script>
+    (function() {
+      var root = document.getElementById('root');
+      if (!window.Telegram || !window.Telegram.WebApp) {
+        root.className = 'status error';
+        root.textContent = 'Откройте страницу из Telegram.';
+        return;
+      }
+      var initData = window.Telegram.WebApp.initData;
+      if (!initData) {
+        root.className = 'status error';
+        root.textContent = 'Нет данных авторизации. Откройте из бота.';
+        return;
+      }
+      fetch('/miniapp/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: initData })
+      })
+        .then(function(r) {
+          if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail && (d.detail.message || d.detail) || r.status); });
+          return r.json();
+        })
+        .then(function(data) {
+          root.className = 'status ok';
+          var html = '';
+          if (data.user) {
+            html += '<p><strong>' + (data.user.display_name || 'Пользователь') + '</strong></p>';
+            html += '<p>Статус: ' + (data.user.status_label || data.user.subscription_status || '—') + '</p>';
+            if (data.user.expires_at) html += '<p>Действует до: ' + data.user.expires_at + '</p>';
+          }
+          if (data.links && data.links.length) {
+            html += '<p>Ссылки подключения:</p><ul class="link-list">';
+            data.links.forEach(function(url) {
+              html += '<li><a href="' + url + '" target="_blank" rel="noopener">Открыть / скопировать</a></li>';
+            });
+            html += '</ul>';
+          }
+          if (data.subscription_url) {
+            html += '<p><a href="' + data.subscription_url + '" target="_blank" rel="noopener" style="color: var(--tg-theme-link-color);">Ссылка подписки</a></p>';
+          }
+          if (!html) html = '<p>Нет активной подписки. Оформите подписку в боте.</p>';
+          root.innerHTML = html;
+        })
+        .catch(function(err) {
+          root.className = 'status error';
+          root.textContent = 'Ошибка: ' + (err.message || err);
+        });
+    })();
+  </script>
+</body>
+</html>
