@@ -101,6 +101,25 @@ async def create_trial_subscription(
                 )
         except Exception as error:
             logger.error('Не удалось получить сквад для триальной подписки пользователя', user_id=user_id, error=error)
+        # Если нет trial-eligible сквадов — привязываем дефолтный (Default-Squad), чтобы серверы подгружались
+        if not final_squads:
+            try:
+                from app.database.crud.server_squad import get_default_squad_uuid
+
+                default_uuid = await get_default_squad_uuid(db)
+                if default_uuid:
+                    final_squads = [default_uuid]
+                    logger.info(
+                        'Для триальной подписки использован дефолтный сквад (серверы будут доступны)',
+                        user_id=user_id,
+                        default_squad_uuid=default_uuid,
+                    )
+            except Exception as fallback_error:
+                logger.warning(
+                    'Не удалось подставить дефолтный сквад для триала',
+                    user_id=user_id,
+                    error=fallback_error,
+                )
 
     end_date = datetime.now(UTC) + timedelta(days=duration_days)
 
@@ -182,6 +201,27 @@ async def create_paid_subscription(
     if device_limit is None:
         device_limit = settings.DEFAULT_DEVICE_LIMIT
 
+    # Если сквады не переданы — привязываем дефолтный (Default-Squad), чтобы серверы подгружались
+    effective_squads = list(connected_squads) if connected_squads else []
+    if not effective_squads:
+        try:
+            from app.database.crud.server_squad import get_default_squad_uuid
+
+            default_uuid = await get_default_squad_uuid(db)
+            if default_uuid:
+                effective_squads = [default_uuid]
+                logger.info(
+                    'Для платной подписки использован дефолтный сквад (серверы будут доступны)',
+                    user_id=user_id,
+                    default_squad_uuid=default_uuid,
+                )
+        except Exception as fallback_error:
+            logger.warning(
+                'Не удалось подставить дефолтный сквад для платной подписки',
+                user_id=user_id,
+                error=fallback_error,
+            )
+
     subscription = Subscription(
         user_id=user_id,
         status=SubscriptionStatus.ACTIVE.value,
@@ -190,7 +230,7 @@ async def create_paid_subscription(
         end_date=end_date,
         traffic_limit_gb=traffic_limit_gb,
         device_limit=device_limit,
-        connected_squads=connected_squads or [],
+        connected_squads=effective_squads,
         autopay_enabled=settings.is_autopay_enabled_by_default(),
         autopay_days_before=settings.DEFAULT_AUTOPAY_DAYS_BEFORE,
         tariff_id=tariff_id,
@@ -207,7 +247,7 @@ async def create_paid_subscription(
         status=subscription.status,
     )
 
-    squad_uuids = list(connected_squads or [])
+    squad_uuids = list(effective_squads)
     if update_server_counters and squad_uuids:
         try:
             from app.database.crud.server_squad import (
@@ -1700,6 +1740,18 @@ async def create_pending_subscription(
     current_time = datetime.now(UTC)
     end_date = current_time + timedelta(days=duration_days)
 
+    # Подставляем дефолтный сквад, если не передан (чтобы после оплаты серверы подгружались)
+    effective_squads_pending = list(connected_squads) if connected_squads else []
+    if not effective_squads_pending:
+        try:
+            from app.database.crud.server_squad import get_default_squad_uuid
+
+            default_uuid = await get_default_squad_uuid(db)
+            if default_uuid:
+                effective_squads_pending = [default_uuid]
+        except Exception:
+            pass
+
     existing_subscription = await get_subscription_by_user_id(db, user_id)
 
     if existing_subscription:
@@ -1720,7 +1772,7 @@ async def create_pending_subscription(
         existing_subscription.end_date = end_date
         existing_subscription.traffic_limit_gb = traffic_limit_gb
         existing_subscription.device_limit = device_limit
-        existing_subscription.connected_squads = connected_squads or []
+        existing_subscription.connected_squads = effective_squads_pending
         existing_subscription.traffic_used_gb = 0.0
         existing_subscription.updated_at = current_time
 
@@ -1744,7 +1796,7 @@ async def create_pending_subscription(
         end_date=end_date,
         traffic_limit_gb=traffic_limit_gb,
         device_limit=device_limit,
-        connected_squads=connected_squads or [],
+        connected_squads=effective_squads_pending,
         autopay_enabled=settings.is_autopay_enabled_by_default(),
         autopay_days_before=settings.DEFAULT_AUTOPAY_DAYS_BEFORE,
     )

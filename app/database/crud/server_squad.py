@@ -492,6 +492,25 @@ async def get_random_trial_squad_uuid(
     return None
 
 
+async def get_default_squad_uuid(db: AsyncSession) -> str | None:
+    """Возвращает UUID первого сквада (по sort_order): сначала доступный, иначе любой. Нужен как fallback, чтобы у подписки был хотя бы один сквад (Default-Squad) и подгружались серверы."""
+    result = await db.execute(
+        select(ServerSquad.squad_uuid)
+        .where(ServerSquad.is_available.is_(True))
+        .order_by(ServerSquad.sort_order, ServerSquad.display_name, ServerSquad.id)
+        .limit(1)
+    )
+    uuid_val = result.scalar_one_or_none()
+    if uuid_val:
+        return uuid_val
+    result = await db.execute(
+        select(ServerSquad.squad_uuid)
+        .order_by(ServerSquad.sort_order, ServerSquad.display_name, ServerSquad.id)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 def _generate_display_name(original_name: str) -> str:
     """Генерирует отображаемое название сервера на основе оригинального имени."""
 
