@@ -82,6 +82,23 @@ async def get_default_promo_group(db: AsyncSession) -> PromoGroup | None:
     return result.scalars().first()
 
 
+async def get_or_create_default_promo_group(db: AsyncSession) -> PromoGroup:
+    """Возвращает дефолтную промо-группу; создаёт «Базовый юзер» с is_default=True, если её ещё нет."""
+    default = await get_default_promo_group(db)
+    if default:
+        return default
+    default = PromoGroup(
+        name='Базовый юзер',
+        server_discount_percent=0,
+        traffic_discount_percent=0,
+        device_discount_percent=0,
+        is_default=True,
+    )
+    db.add(default)
+    await db.flush()
+    return default
+
+
 async def create_promo_group(
     db: AsyncSession,
     name: str,

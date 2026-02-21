@@ -2099,6 +2099,19 @@ async def confirm_simple_subscription_purchase(
         await callback.answer('❌ Данные подписки устарели. Пожалуйста, начните сначала.', show_alert=True)
         return
 
+    # При покупке подписки сохраняем актуальный username и имя из Telegram в БД
+    from app.database.crud.user import update_user
+
+    tg = callback.from_user
+    await update_user(
+        db,
+        db_user,
+        username=tg.username,
+        first_name=tg.first_name,
+        last_name=tg.last_name,
+    )
+    await db.refresh(db_user)
+
     resolved_squad_uuid = await _ensure_simple_subscription_squad_uuid(
         db,
         state,

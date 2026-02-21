@@ -12,7 +12,7 @@ from app.config import settings
 from app.database.crud.subscription import create_paid_subscription, extend_subscription, get_subscription_by_user_id
 from app.database.crud.tariff import get_tariff_by_id, get_tariffs_for_user
 from app.database.crud.transaction import create_transaction
-from app.database.crud.user import subtract_user_balance
+from app.database.crud.user import subtract_user_balance, update_user
 from app.database.models import Tariff, TransactionType, User
 from app.localization.texts import get_texts
 from app.services.admin_notification_service import AdminNotificationService
@@ -1094,6 +1094,17 @@ async def confirm_tariff_purchase(
     state: FSMContext,
 ):
     """Подтверждает покупку тарифа и создает подписку."""
+    # При покупке подписки сохраняем актуальный username и имя из Telegram в БД
+    tg = callback.from_user
+    await update_user(
+        db,
+        db_user,
+        username=tg.username,
+        first_name=tg.first_name,
+        last_name=tg.last_name,
+    )
+    await db.refresh(db_user)
+
     parts = callback.data.split(':')
     tariff_id = int(parts[1])
     period = int(parts[2])

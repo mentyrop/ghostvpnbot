@@ -15,7 +15,7 @@ from app.database.crud.subscription import (
     create_trial_subscription,
 )
 from app.database.crud.transaction import create_transaction
-from app.database.crud.user import subtract_user_balance
+from app.database.crud.user import subtract_user_balance, update_user
 from app.database.models import Subscription, SubscriptionStatus, TransactionType, User
 from app.keyboards.inline import (
     get_back_keyboard,
@@ -2261,6 +2261,17 @@ async def confirm_purchase(callback: types.CallbackQuery, state: FSMContext, db_
 
     data = await state.get_data()
     texts = get_texts(db_user.language)
+
+    # При покупке подписки сохраняем актуальный username и имя из Telegram в БД
+    tg = callback.from_user
+    await update_user(
+        db,
+        db_user,
+        username=tg.username,
+        first_name=tg.first_name,
+        last_name=tg.last_name,
+    )
+    await db.refresh(db_user)
 
     await save_subscription_checkout_draft(db_user.id, dict(data))
     resume_callback = 'subscription_resume_checkout' if should_offer_checkout_resume(db_user, True) else None

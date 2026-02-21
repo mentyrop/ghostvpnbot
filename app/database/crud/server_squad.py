@@ -36,6 +36,14 @@ async def _get_default_promo_group_id(db: AsyncSession) -> int | None:
     return result.scalar_one_or_none()
 
 
+async def _get_or_use_default_promo_group_ids(db: AsyncSession) -> list[int]:
+    """Возвращает id дефолтной промо-группы; при отсутствии создаёт «Базовый юзер», чтобы сквады всегда были привязаны к группе."""
+    from app.database.crud.promo_group import get_or_create_default_promo_group
+
+    default = await get_or_create_default_promo_group(db)
+    return [default.id]
+
+
 async def create_server_squad(
     db: AsyncSession,
     squad_uuid: str,
@@ -57,8 +65,10 @@ async def create_server_squad(
     else:
         normalized_group_ids = [int(pg_id) for pg_id in set(promo_group_ids)]
 
+    # Если промо-групп нет (например, при первой синхронизации серверов до создания пользователей),
+    # создаём дефолтную «Базовый юзер» и привязываем к ней сквад (в т.ч. Default-Squad из RemnaWave).
     if not normalized_group_ids:
-        raise ValueError('Server squad must be linked to at least one promo group')
+        normalized_group_ids = await _get_or_use_default_promo_group_ids(db)
 
     promo_groups_result = await db.execute(select(PromoGroup).where(PromoGroup.id.in_(normalized_group_ids)))
     promo_groups = promo_groups_result.scalars().all()
