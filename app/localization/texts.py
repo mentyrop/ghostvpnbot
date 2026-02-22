@@ -191,7 +191,7 @@ class Texts:
         if item in self._fallback_values:
             return self._fallback_values[item]
 
-        _logger.warning("Missing localization key '' for language ''", item=item, language=self.language)
+        _logger.warning("Missing localization key %r for language %r", item, self.language)
         raise KeyError(item)
 
     @staticmethod

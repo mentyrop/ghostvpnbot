@@ -213,7 +213,8 @@ async def process_cryptobot_payment_amount(
             try:
                 await message.bot.delete_message(prompt_chat_id, prompt_message_id)
             except Exception as delete_error:  # pragma: no cover - diagnostics
-                logger.warning('Не удалось удалить сообщение с запросом суммы CryptoBot', delete_error=delete_error)
+                if 'message to delete not found' not in str(delete_error).lower():
+                    logger.warning('Не удалось удалить сообщение с запросом суммы CryptoBot', delete_error=delete_error)
 
         invoice_message = await message.answer(
             f'🪙 <b>Оплата криптовалютой</b>\n\n'
