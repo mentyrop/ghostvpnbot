@@ -1475,6 +1475,30 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
             return f'topup_amount|{method}|{amount_kopeks}'
         return f'topup_{method}'
 
+    # Порядок: Robokassa, CryptoBot, Telegram Stars, затем остальные. Кнопка «Через поддержку» не показывается.
+    if settings.is_robokassa_enabled():
+        robokassa_name = settings.get_robokassa_display_name()
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=texts.t('PAYMENT_ROBOKASSA', f'💳 {robokassa_name}'),
+                    callback_data=_build_callback('robokassa'),
+                )
+            ]
+        )
+        has_direct_payment_methods = True
+
+    if settings.is_cryptobot_enabled():
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=texts.t('PAYMENT_CRYPTOBOT', '🪙 Криптовалюта (CryptoBot)'),
+                    callback_data=_build_callback('cryptobot'),
+                )
+            ]
+        )
+        has_direct_payment_methods = True
+
     if settings.TELEGRAM_STARS_ENABLED:
         keyboard.append(
             [
@@ -1566,17 +1590,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
         )
         has_direct_payment_methods = True
 
-    if settings.is_cryptobot_enabled():
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    text=texts.t('PAYMENT_CRYPTOBOT', '🪙 Криптовалюта (CryptoBot)'),
-                    callback_data=_build_callback('cryptobot'),
-                )
-            ]
-        )
-        has_direct_payment_methods = True
-
     if settings.is_heleket_enabled():
         keyboard.append(
             [
@@ -1611,18 +1624,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
         )
         has_direct_payment_methods = True
 
-    if settings.is_robokassa_enabled():
-        robokassa_name = settings.get_robokassa_display_name()
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    text=texts.t('PAYMENT_ROBOKASSA', f'💳 {robokassa_name}'),
-                    callback_data=_build_callback('robokassa'),
-                )
-            ]
-        )
-        has_direct_payment_methods = True
-
     if settings.is_kassa_ai_enabled():
         kassa_ai_name = settings.get_kassa_ai_display_name()
         keyboard.append(
@@ -1633,15 +1634,6 @@ def get_payment_methods_keyboard(amount_kopeks: int, language: str = DEFAULT_LAN
             ]
         )
         has_direct_payment_methods = True
-
-    if settings.is_support_topup_enabled():
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    text=texts.t('PAYMENT_VIA_SUPPORT', '🛠️ Через поддержку'), callback_data='topup_support'
-                )
-            ]
-        )
 
     if not keyboard:
         keyboard.append(

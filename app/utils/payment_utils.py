@@ -4,10 +4,37 @@ from app.localization.texts import get_texts
 
 def get_available_payment_methods() -> list[dict[str, str]]:
     """
-    Возвращает список доступных способов оплаты с их настройками
+    Возвращает список доступных способов оплаты с их настройками.
+    Порядок в меню пополнения: Robokassa, CryptoBot, Telegram Stars, затем остальные.
+    Способ «Через поддержку» не включается в список.
     """
     methods = []
 
+    # 1. Robokassa (первым)
+    if settings.is_robokassa_enabled():
+        methods.append(
+            {
+                'id': 'robokassa',
+                'name': 'Robokassa',
+                'icon': '💳',
+                'description': 'СБП, Карты РФ',
+                'callback': 'topup_robokassa',
+            }
+        )
+
+    # 2. CryptoBot
+    if settings.is_cryptobot_enabled():
+        methods.append(
+            {
+                'id': 'cryptobot',
+                'name': 'Криптовалюта',
+                'icon': '🪙',
+                'description': 'через CryptoBot',
+                'callback': 'topup_cryptobot',
+            }
+        )
+
+    # 3. Telegram Stars
     if settings.TELEGRAM_STARS_ENABLED:
         methods.append(
             {
@@ -19,6 +46,7 @@ def get_available_payment_methods() -> list[dict[str, str]]:
             }
         )
 
+    # Остальные способы
     if settings.is_yookassa_enabled():
         if getattr(settings, 'YOOKASSA_SBP_ENABLED', False):
             methods.append(
@@ -30,7 +58,6 @@ def get_available_payment_methods() -> list[dict[str, str]]:
                     'callback': 'topup_yookassa_sbp',
                 }
             )
-
         methods.append(
             {
                 'id': 'yookassa',
@@ -78,17 +105,6 @@ def get_available_payment_methods() -> list[dict[str, str]]:
     if settings.is_pal24_enabled():
         methods.append(
             {'id': 'pal24', 'name': 'СБП', 'icon': '🏦', 'description': 'через PayPalych', 'callback': 'topup_pal24'}
-        )
-
-    if settings.is_cryptobot_enabled():
-        methods.append(
-            {
-                'id': 'cryptobot',
-                'name': 'Криптовалюта',
-                'icon': '🪙',
-                'description': 'через CryptoBot',
-                'callback': 'topup_cryptobot',
-            }
         )
 
     if settings.is_heleket_enabled():
@@ -147,17 +163,6 @@ def get_available_payment_methods() -> list[dict[str, str]]:
                 'icon': '💳',
                 'description': f'через {kassa_ai_name}',
                 'callback': 'topup_kassa_ai',
-            }
-        )
-
-    if settings.is_support_topup_enabled():
-        methods.append(
-            {
-                'id': 'support',
-                'name': 'Через поддержку',
-                'icon': '🛠️',
-                'description': 'другие способы',
-                'callback': 'topup_support',
             }
         )
 
@@ -267,6 +272,8 @@ def is_payment_method_available(method_id: str) -> bool:
         return settings.is_freekassa_enabled()
     if method_id == 'kassa_ai':
         return settings.is_kassa_ai_enabled()
+    if method_id == 'robokassa':
+        return settings.is_robokassa_enabled()
     if method_id == 'support':
         return settings.is_support_topup_enabled()
     return False
@@ -321,5 +328,7 @@ def get_enabled_payment_methods_count() -> int:
     if settings.is_freekassa_enabled():
         count += 1
     if settings.is_kassa_ai_enabled():
+        count += 1
+    if settings.is_robokassa_enabled():
         count += 1
     return count

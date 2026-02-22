@@ -297,6 +297,15 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
         @router.post(settings.CRYPTOBOT_WEBHOOK_PATH)
         async def cryptobot_webhook(request: Request) -> JSONResponse:
             raw_body = await request.body()
+            try:
+                _payload = json.loads(raw_body.decode('utf-8')) if raw_body else {}
+                logger.info(
+                    'CryptoBot webhook request received',
+                    update_type=_payload.get('update_type'),
+                    invoice_id=_payload.get('payload', {}).get('invoice_id') if isinstance(_payload.get('payload'), dict) else None,
+                )
+            except Exception:
+                pass
             if not raw_body:
                 return JSONResponse(
                     {'status': 'error', 'reason': 'empty_body'}, status_code=status.HTTP_400_BAD_REQUEST
@@ -315,6 +324,7 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
             secret = settings.CRYPTOBOT_WEBHOOK_SECRET
             if secret:
                 if not signature:
+                    logger.warning('CryptoBot webhook rejected: missing Crypto-Pay-API-Signature header')
                     return JSONResponse(
                         {'status': 'error', 'reason': 'missing_signature'},
                         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -323,6 +333,7 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
                 from app.external.cryptobot import CryptoBotService
 
                 if not CryptoBotService().verify_webhook_signature(payload_text, signature):
+                    logger.warning('CryptoBot webhook rejected: invalid signature (check CRYPTOBOT_WEBHOOK_SECRET = API token)')
                     return JSONResponse(
                         {'status': 'error', 'reason': 'invalid_signature'},
                         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -335,6 +346,10 @@ def create_payment_router(bot: Bot, payment_service: PaymentService) -> APIRoute
                     'process_cryptobot_webhook',
                 )
                 if success:
+                    logger.info(
+                        'CryptoBot webhook processed successfully',
+                        invoice_id=payload.get('payload', {}).get('invoice_id') if isinstance(payload.get('payload'), dict) else None,
+                    )
                     return JSONResponse({'status': 'ok'})
 
                 logger.error(
