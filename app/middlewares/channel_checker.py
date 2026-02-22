@@ -145,6 +145,15 @@ class ChannelCheckerMiddleware(BaseMiddleware):
             logger.debug('⚠️ Обязательная подписка отключена, пропускаем проверку')
             return await handler(event, data)
 
+        # Если подписка на канал нужна только для триала — проверяем только при обращении к триалу
+        if not settings.CHANNEL_REQUIRED_FOR_ALL:
+            if not self._is_trial_related_event(event):
+                logger.debug(
+                    '✅ Подписка на канал требуется только для триала — действие не триал, пропускаем проверку',
+                    telegram_id=telegram_id,
+                )
+                return await handler(event, data)
+
         channel_link = self._normalize_channel_link(settings.CHANNEL_LINK, channel_id)
 
         if not channel_link:
@@ -198,6 +207,13 @@ class ChannelCheckerMiddleware(BaseMiddleware):
         except Exception as e:
             logger.error('❌ Неожиданная ошибка при проверке подписки', error=e)
             return await handler(event, data)
+
+    @staticmethod
+    def _is_trial_related_event(event: TelegramObject) -> bool:
+        """Возвращает True, если событие связано с получением/проверкой триальной подписки."""
+        if isinstance(event, CallbackQuery) and event.data:
+            return event.data in ('menu_trial', 'trial_activate', 'sub_channel_check')
+        return False
 
     @staticmethod
     def _normalize_channel_link(channel_link: str | None, channel_id: str | None) -> str | None:
