@@ -178,20 +178,27 @@ class ChannelCheckerMiddleware(BaseMiddleware):
                 await self._capture_start_payload(state, event, bot)
 
                 if isinstance(event, CallbackQuery) and event.data == 'sub_channel_check':
+                    user_lang_alert = await self._get_user_language(telegram_id)
+                    lang_alert = user_lang_alert or (event.from_user.language_code.split('-')[0] if event.from_user and event.from_user.language_code else DEFAULT_LANGUAGE)
+                    texts_alert = get_texts(lang_alert)
                     await event.answer(
-                        '❌ Вы еще не подписались на канал! Подпишитесь и попробуйте снова.', show_alert=True
+                        texts_alert.t('CHANNEL_SUBSCRIBE_REQUIRED_ALERT', '❌ Вы не подписались на канал!'),
+                        show_alert=True,
                     )
                     return None
 
-                return await self._deny_message(event, bot, channel_link, channel_id)
+                user_lang = await self._get_user_language(telegram_id)
+                return await self._deny_message(event, bot, channel_link, channel_id, user_language=user_lang)
             logger.warning('⚠️ Неожиданный статус пользователя', telegram_id=telegram_id, status=member.status)
             await self._capture_start_payload(state, event, bot)
-            return await self._deny_message(event, bot, channel_link, channel_id)
+            user_lang = await self._get_user_language(telegram_id)
+            return await self._deny_message(event, bot, channel_link, channel_id, user_language=user_lang)
 
         except TelegramForbiddenError as e:
             logger.error('❌ Бот заблокирован в канале', channel_id=channel_id, error=e)
             await self._capture_start_payload(state, event, bot)
-            return await self._deny_message(event, bot, channel_link, channel_id)
+            user_lang = await self._get_user_language(telegram_id)
+            return await self._deny_message(event, bot, channel_link, channel_id, user_language=user_lang)
         except TelegramBadRequest as e:
             if 'chat not found' in str(e).lower():
                 logger.error('❌ Канал не найден', channel_id=channel_id, error=e)
@@ -200,7 +207,8 @@ class ChannelCheckerMiddleware(BaseMiddleware):
             else:
                 logger.error('❌ Ошибка запроса к каналу', channel_id=channel_id, error=e)
             await self._capture_start_payload(state, event, bot)
-            return await self._deny_message(event, bot, channel_link, channel_id)
+            user_lang = await self._get_user_language(telegram_id)
+            return await self._deny_message(event, bot, channel_link, channel_id, user_language=user_lang)
         except TelegramNetworkError as e:
             logger.warning('⚠️ Таймаут при проверке подписки на канал', error=e)
             return await handler(event, data)
@@ -463,12 +471,23 @@ class ChannelCheckerMiddleware(BaseMiddleware):
                 logger.error('❌ Ошибка реактивации подписки пользователя', telegram_id=telegram_id, db_error=db_error)
                 await db.rollback()
 
+    async def _get_user_language(self, telegram_id: int) -> str | None:
+        """Возвращает язык пользователя из БД (выбранный в боте) или None."""
+        try:
+            async with AsyncSessionLocal() as db:
+                user = await get_user_by_telegram_id(db, telegram_id)
+                return getattr(user, 'language', None) if user else None
+        except Exception as e:
+            logger.debug('Не удалось получить язык пользователя из БД', telegram_id=telegram_id, error=e)
+            return None
+
     @staticmethod
     async def _deny_message(
         event: TelegramObject,
         bot: Bot,
         channel_link: str | None,
         channel_id: str | None,
+        user_language: str | None = None,
     ):
         logger.debug('🚫 Отправляем сообщение о необходимости подписки')
 
@@ -481,8 +500,8 @@ class ChannelCheckerMiddleware(BaseMiddleware):
             elif event.callback_query and event.callback_query.from_user:
                 user = event.callback_query.from_user
 
-        language = DEFAULT_LANGUAGE
-        if user and user.language_code:
+        language = user_language or DEFAULT_LANGUAGE
+        if not user_language and user and user.language_code:
             language = user.language_code.split('-')[0]
 
         texts = get_texts(language)
