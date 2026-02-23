@@ -496,19 +496,21 @@ class SubscriptionService:
             return False
 
     async def get_remnawave_squads(self) -> list[dict] | None:
-        """Получить список internal squads из RemnaWave."""
+        """Получить список сквадов из RemnaWave (internal + external) для синхронизации."""
         try:
             async with self.get_api_client() as api:
-                squads = await api.get_internal_squads()
-                # Преобразуем в формат для sync_with_remnawave
                 result = []
-                for squad in squads:
-                    result.append(
-                        {
-                            'uuid': squad.uuid,
-                            'name': squad.name,
-                        }
-                    )
+                seen = set()
+                for squad in await api.get_internal_squads():
+                    result.append({'uuid': squad.uuid, 'name': squad.name})
+                    seen.add(squad.uuid)
+                try:
+                    for squad in await api.get_external_squads():
+                        if squad.uuid not in seen:
+                            seen.add(squad.uuid)
+                            result.append({'uuid': squad.uuid, 'name': squad.name})
+                except Exception:
+                    pass
                 logger.info('✅ Получено серверов из RemnaWave', result_count=len(result))
                 return result
 
