@@ -1997,8 +1997,11 @@ async def get_daily_subscriptions_for_charge(db: AsyncSession) -> list[Subscript
 
     result = await db.execute(query)
     subscriptions = result.scalars().all()
-
-    logger.info('🔍 Найдено суточных подписок для списания', subscriptions_count=len(subscriptions))
+    count = len(subscriptions)
+    if count > 0:
+        logger.info('🔍 Найдено суточных подписок для списания', subscriptions_count=count)
+    else:
+        logger.debug('🔍 Найдено суточных подписок для списания', subscriptions_count=count)
 
     return list(subscriptions)
 

@@ -157,7 +157,7 @@ class VersionService:
                     self._cache['releases'] = releases
                     self._last_check = datetime.now(UTC)
 
-                    logger.info('Получено релизов из GitHub', releases_count=len(releases))
+                    logger.debug('Получено релизов из GitHub', releases_count=len(releases))
                     return releases
                 logger.warning('GitHub API вернул статус', status=response.status)
                 return []

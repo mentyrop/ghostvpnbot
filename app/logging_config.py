@@ -163,7 +163,8 @@ def _configure_noisy_loggers() -> None:
         'app.external.remnawave_api': logging.WARNING,
         'aiogram': logging.WARNING,
         'uvicorn.access': logging.ERROR,
-        'uvicorn.error': logging.WARNING,
+        # Suppress "Invalid HTTP request received" (scanners / non-HTTP on HTTP port)
+        'uvicorn.error': logging.ERROR,
         'uvicorn.protocols.websockets.websockets_impl': logging.WARNING,
         'websockets.server': logging.WARNING,
         'websockets': logging.WARNING,

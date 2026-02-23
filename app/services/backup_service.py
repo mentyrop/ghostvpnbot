@@ -1786,7 +1786,14 @@ class BackupService:
                     logger.warning('Не удалось удалить временный архив', cleanup_error=cleanup_error)
 
         except Exception as e:
-            logger.error('Ошибка отправки бекапа в чат', error=e)
+            err_text = str(e).lower()
+            if 'chat not found' in err_text or 'chat_id' in err_text:
+                logger.error(
+                    'Ошибка отправки бекапа в чат: чат не найден. Проверьте BACKUP_SEND_CHAT_ID и что бот добавлен в чат/канал.',
+                    error=e,
+                )
+            else:
+                logger.error('Ошибка отправки бекапа в чат', error=e)
 
     async def _create_password_protected_archive(self, file_path: str, password: str) -> str | None:
         try:

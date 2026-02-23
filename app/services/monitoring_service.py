@@ -255,7 +255,10 @@ class MonitoringService:
             old_count = len(self._notified_users)
             self._notified_users.clear()
             self._last_cleanup = current_time
-            logger.info('🧹 Очищен кеш уведомлений ( записей)', old_count=old_count)
+            if old_count > 0:
+                logger.info('🧹 Очищен кеш уведомлений ( записей)', old_count=old_count)
+            else:
+                logger.debug('🧹 Очищен кеш уведомлений ( записей)', old_count=old_count)
 
     async def _check_expired_subscriptions(self, db: AsyncSession):
         try:
@@ -869,7 +872,11 @@ class MonitoringService:
         if excluded_count > 0:
             logger.debug('🔄 Исключено суточных подписок из уведомлений', excluded_count=excluded_count)
 
-        logger.info('📊 Найдено платных подписок для уведомлений', subscriptions_count=len(subscriptions))
+        count = len(subscriptions)
+        if count > 0:
+            logger.info('📊 Найдено платных подписок для уведомлений', subscriptions_count=count)
+        else:
+            logger.debug('📊 Найдено платных подписок для уведомлений', subscriptions_count=count)
 
         return subscriptions
 
